@@ -118,14 +118,26 @@ export default function ToolPanel({
 }) {
   const [functionAdded, setFunctionAdded] = useState(false);
   const [functionCallOutput, setFunctionCallOutput] = useState(null);
+  const [logs, setLogs] = useState([]);
+
+  const addLog = (type, data) => {
+    const timestamp = new Date().toISOString();
+    setLogs(prevLogs => [{
+      timestamp,
+      type,
+      data
+    }, ...prevLogs].slice(0, 50)); // Keep last 50 logs
+  };
 
   useEffect(() => {
     if (!events || events.length === 0) return;
 
     const firstEvent = events[events.length - 1];
     if (!functionAdded && firstEvent.type === "session.created") {
+      addLog('Session Created', firstEvent);
       sendClientEvent(sessionUpdate);
       setFunctionAdded(true);
+      addLog('Tools Registered', sessionUpdate.session.tools);
     }
 
     const mostRecentEvent = events[0];
@@ -135,6 +147,11 @@ export default function ToolPanel({
     ) {
       mostRecentEvent.response.output.forEach((output) => {
         if (output.type === "function_call") {
+          addLog('Function Call', {
+            name: output.name,
+            arguments: JSON.parse(output.arguments)
+          });
+          
           setFunctionCallOutput(output);
           if (output.name === "display_color_palette") {
             setTimeout(() => {
@@ -149,8 +166,17 @@ export default function ToolPanel({
               });
             }, 500);
           } else if (output.name === "foreign_worker_enquiry") {
-            // Handle the API call for foreign worker enquiry
             const args = JSON.parse(output.arguments);
+            addLog('API Request', {
+              endpoint: "http://127.0.0.1:3001/api/v1/prediction/445d78bd-6f55-4465-97b0-ba42c14d8a95",
+              payload: {
+                question: args.question,
+                overrideConfig: {
+                  sessionId: args.sessionId
+                }
+              }
+            });
+            
             fetch("http://127.0.0.1:3001/api/v1/prediction/445d78bd-6f55-4465-97b0-ba42c14d8a95", {
               method: "POST",
               headers: {
@@ -165,6 +191,7 @@ export default function ToolPanel({
             })
             .then(response => response.json())
             .then(data => {
+              addLog('API Response', data);
               sendClientEvent({
                 type: "response.create",
                 response: {
@@ -173,6 +200,7 @@ export default function ToolPanel({
               });
             })
             .catch(error => {
+              addLog('API Error', error);
               console.error("Error:", error);
               sendClientEvent({
                 type: "response.create",
@@ -191,6 +219,8 @@ export default function ToolPanel({
     if (!isSessionActive) {
       setFunctionAdded(false);
       setFunctionCallOutput(null);
+      setLogs([]);
+      addLog('Session Reset', { timestamp: new Date().toISOString() });
     }
   }, [isSessionActive]);
 
@@ -199,11 +229,29 @@ export default function ToolPanel({
       <div className="h-full bg-gray-50 rounded-md p-4">
         <h2 className="text-lg font-bold">Tools Panel</h2>
         {isSessionActive ? (
-          functionCallOutput ? (
-            <FunctionCallOutput functionCallOutput={functionCallOutput} />
-          ) : (
-            <p>Ask about color palettes or foreign worker requirements...</p>
-          )
+          <>
+            {functionCallOutput ? (
+              <FunctionCallOutput functionCallOutput={functionCallOutput} />
+            ) : (
+              <p>Ask about color palettes or foreign worker requirements...</p>
+            )}
+            
+            {/* Logging Panel */}
+            <div className="mt-6 border-t pt-4">
+              <h3 className="text-md font-semibold mb-2">Debug Logs</h3>
+              <div className="bg-gray-800 text-green-400 p-4 rounded-md h-64 overflow-y-auto font-mono text-sm">
+                {logs.map((log, index) => (
+                  <div key={index} className="mb-2">
+                    <span className="text-gray-400">[{log.timestamp}]</span>
+                    <span className="text-yellow-400"> {log.type}:</span>
+                    <pre className="whitespace-pre-wrap overflow-x-auto">
+                      {JSON.stringify(log.data, null, 2)}
+                    </pre>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
         ) : (
           <p>Start the session to use these tools...</p>
         )}
