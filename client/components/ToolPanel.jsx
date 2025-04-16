@@ -126,7 +126,7 @@ export default function ToolPanel({
       timestamp,
       type,
       data
-    }, ...prevLogs].slice(0, 50)); // Keep last 50 logs
+    }, ...prevLogs].slice(0, 50));
   };
 
   useEffect(() => {
@@ -134,6 +134,7 @@ export default function ToolPanel({
 
     const firstEvent = events[events.length - 1];
     if (!functionAdded && firstEvent.type === "session.created") {
+      console.log("Registering tools:", sessionUpdate.session.tools);
       addLog('Session Created', firstEvent);
       sendClientEvent(sessionUpdate);
       setFunctionAdded(true);
@@ -145,6 +146,7 @@ export default function ToolPanel({
       mostRecentEvent.type === "response.done" &&
       mostRecentEvent.response.output
     ) {
+      addLog('Response Event', mostRecentEvent);
       mostRecentEvent.response.output.forEach((output) => {
         if (output.type === "function_call") {
           addLog('Function Call', {
@@ -224,17 +226,42 @@ export default function ToolPanel({
     }
   }, [isSessionActive]);
 
+  const renderAvailableTools = () => (
+    <div className="mb-4 p-4 bg-white rounded-md shadow">
+      <h3 className="text-md font-semibold mb-2">Available Tools:</h3>
+      <div className="space-y-2">
+        {sessionUpdate.session.tools.map((tool, index) => (
+          <div key={index} className="p-2 bg-gray-50 rounded">
+            <span className="font-medium">{tool.name}</span>
+            <p className="text-sm text-gray-600">{tool.description}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
   return (
     <section className="h-full w-full flex flex-col gap-4">
       <div className="h-full bg-gray-50 rounded-md p-4">
         <h2 className="text-lg font-bold">Tools Panel</h2>
         {isSessionActive ? (
           <>
+            {renderAvailableTools()}
+            
             {functionCallOutput ? (
               <FunctionCallOutput functionCallOutput={functionCallOutput} />
             ) : (
-              <p>Ask about color palettes or foreign worker requirements...</p>
+              <p className="text-gray-600">Try these example prompts:</p>
             )}
+            
+            <div className="mt-2 space-y-2">
+              <div className="p-2 bg-gray-100 rounded">
+                <p className="text-sm italic">"Generate a color palette for a modern tech website"</p>
+              </div>
+              <div className="p-2 bg-gray-100 rounded">
+                <p className="text-sm italic">"What are the requirements for Employment Pass in Singapore?"</p>
+              </div>
+            </div>
             
             {/* Logging Panel */}
             <div className="mt-6 border-t pt-4">
